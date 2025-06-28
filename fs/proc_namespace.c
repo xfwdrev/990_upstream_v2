@@ -21,6 +21,11 @@
 #include "pnode.h"
 #include "internal.h"
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+extern bool susfs_is_current_ksu_domain(void);
+bool susfs_hide_sus_mnts_for_all_procs = true; // hide sus mounts for all processes by default
+#endif
+
 static __poll_t mounts_poll(struct file *file, poll_table *wait)
 {
 	struct seq_file *m = file->private_data;
@@ -106,7 +111,7 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
 	int err;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID))
+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
 		return 0;
 #endif
 
@@ -147,12 +152,12 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
 	int err;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID))
+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
 		return 0;
 #endif
-
+	
 	seq_printf(m, "%i %i %u:%u ", r->mnt_id, r->mnt_parent->mnt_id,
-		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
+ 		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
 	if (sb->s_op->show_path) {
 		err = sb->s_op->show_path(m, mnt->mnt_root);
 		if (err)
@@ -216,7 +221,7 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
 	int err;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID))
+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
 		return 0;
 #endif
 
@@ -302,7 +307,6 @@ static int mounts_open_common(struct inode *inode, struct file *file,
 	p->root = root;
 	p->show = show;
 	p->cached_event = ~0ULL;
-
 	return 0;
 
  err_put_path:
@@ -317,6 +321,7 @@ static int mounts_release(struct inode *inode, struct file *file)
 {
 	struct seq_file *m = file->private_data;
 	struct proc_mounts *p = m->private;
+
 	path_put(&p->root);
 	put_mnt_ns(p->ns);
 	return seq_release_private(inode, file);
