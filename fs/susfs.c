@@ -84,17 +84,21 @@ int susfs_set_i_state_on_external_dir(char __user* user_info, int cmd) {
 	}
 	
 	if (cmd == CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH) {
+		spin_lock(&inode->i_lock);
+		set_bit(AS_FLAGS_ANDROID_DATA_ROOT_DIR, &inode->i_mapping->flags);
+		spin_unlock(&inode->i_lock);
 		strncpy(android_data_path.pathname, resolved_pathname, SUSFS_MAX_LEN_PATHNAME-1);
-		android_data_path.i_ino = inode->i_ino;
-		android_data_path.s_magic = inode->i_sb->s_magic;
-		SUSFS_LOGI("Set android data root dir: '%s', ino: '%lu', magic: '%lu'\n",
-			android_data_path.pathname, android_data_path.i_ino, android_data_path.s_magic);
+		android_data_path.is_inited = true;
+		SUSFS_LOGI("Set android data root dir: '%s', i_mapping: '0x%p'\n",
+			android_data_path.pathname, inode->i_mapping);
 	} else if (cmd == CMD_SUSFS_SET_SDCARD_ROOT_PATH) {
+		spin_lock(&inode->i_lock);
+		set_bit(AS_FLAGS_SDCARD_ROOT_DIR, &inode->i_mapping->flags);
+		spin_unlock(&inode->i_lock);
 		strncpy(sdcard_path.pathname, resolved_pathname, SUSFS_MAX_LEN_PATHNAME-1);
-		sdcard_path.i_ino = inode->i_ino;
-		sdcard_path.s_magic = inode->i_sb->s_magic;
-		SUSFS_LOGI("Set sdcard root dir: '%s', ino: '%lu', magic: '%lu'\n",
-			sdcard_path.pathname, sdcard_path.i_ino, sdcard_path.s_magic);
+		sdcard_path.is_inited = true;
+		SUSFS_LOGI("Set sdcard root dir: '%s', i_mapping: '0x%p'\n",
+			sdcard_path.pathname, inode->i_mapping);
 	} else {
 		err = -EINVAL;
 	}
@@ -148,7 +152,7 @@ int susfs_add_sus_path(struct st_susfs_sus_path* __user user_info) {
 	}
 
 	if (strstr(resolved_pathname, android_data_path.pathname)) {
-		if (android_data_path.i_ino == 0) {
+		if (!android_data_path.is_inited) {
 			err = -EINVAL;
 			SUSFS_LOGE("android_data_path is not configured yet, plz do like 'ksu_susfs set_android_data_root_path /sdcard/Android/data' first after your screen is unlocked\n");
 			goto out_kfree_tmp_buf;
@@ -185,7 +189,7 @@ int susfs_add_sus_path(struct st_susfs_sus_path* __user user_info) {
 		spin_unlock(&susfs_spin_lock);
 		goto out_kfree_tmp_buf;
 	} else if (strstr(resolved_pathname, sdcard_path.pathname)) {
-		if (sdcard_path.i_ino ==  0) {
+		if (!sdcard_path.is_inited) {
 			err = -EINVAL;
 			SUSFS_LOGE("sdcard_path is not configured yet, plz do like 'ksu_susfs set_sdcard_root_path /sdcard' first after your screen is unlocked\n");
 			goto out_kfree_tmp_buf;
