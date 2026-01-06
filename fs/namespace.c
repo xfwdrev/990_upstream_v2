@@ -1186,7 +1186,7 @@ struct vfsmount *vfs_create_mount(struct fs_context *fc)
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 	// We keep checking for ksu process only until boot-completed stage is triggered
 	if (!susfs_is_boot_completed_triggered && susfs_is_current_ksu_domain()) {
-		mnt = susfs_alloc_sus_vfsmnt(name);
+		mnt = susfs_alloc_sus_vfsmnt(fc->source ?: "none");
 		atomic64_add(1, &susfs_ksu_mounts);
 		goto bypass_orig_flow;
 	}
