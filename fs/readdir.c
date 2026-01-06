@@ -20,9 +20,6 @@
 #include <linux/syscalls.h>
 #include <linux/unistd.h>
 #include <linux/compat.h>
-#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-#include <linux/susfs_def.h>
-#endif
 
 #include <linux/uaccess.h>
 

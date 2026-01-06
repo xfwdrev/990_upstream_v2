@@ -102,8 +102,10 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
 	inode = igrab(fsnotify_conn_inode(mark->connector));
 	if (inode) {
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-		if (likely(susfs_is_current_non_root_user_app_proc()) &&
-				unlikely(inode->i_state & INODE_STATE_SUS_KSTAT)) {
+		mnt = real_mount(file->f_path.mnt);
+		if (likely(susfs_is_current_proc_umounted()) &&
+					mnt->mnt_id >= DEFAULT_KSU_MNT_ID)
+		{
 			struct path path;
 			char *pathname = kmalloc(PAGE_SIZE, GFP_KERNEL);
 			char *dpath;
@@ -118,8 +120,8 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
 				goto out_free_pathname;
 			}
 			seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
-			   inode_mark->wd, path.dentry->d_inode->i_ino, path.dentry->d_inode->i_sb->s_dev,
-			   inotify_mark_user_mask(mark));
+					inode_mark->wd, path.dentry->d_inode->i_ino, path.dentry->d_inode->i_sb->s_dev,
+					inotify_mark_user_mask(mark));
 			show_mark_fhandle(m, path.dentry->d_inode);
 			seq_putc(m, '\n');
 			iput(inode);
