@@ -1060,7 +1060,6 @@ out_copy_to_user:
 extern void setup_selinux(const char *domain, struct cred *cred);
 extern bool susfs_is_current_ksu_domain(void);
 bool susfs_is_sdcard_android_data_decrypted __read_mostly = false;
-static struct task_struct *susfs_sdcard_monitor_thread;
 struct watch_dir {
 	const char *path;
 	u32 mask;
@@ -1137,12 +1136,12 @@ static int susfs_handle_sdcard_inode_event(struct fsnotify_group *group,
                                            u32 mask,
                                            const void *data,
                                            int data_type,
-                                           const struct qstr *file_name,
+                                           const unsigned char *file_name,
                                            u32 cookie,
                                            struct fsnotify_iter_info *iter_info)
 {
-	if (!file_name || file_name->len != 7 ||
-	    memcmp(file_name->name, "Android", 7))
+	if (!file_name || strlen(file_name) != 7 ||
+	    memcmp(file_name, "Android", 7))
 		return 0;
 
 	if (test_and_set_bit(0, &sdcard_cleanup_scheduled))

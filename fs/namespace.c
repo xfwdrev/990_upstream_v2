@@ -267,6 +267,8 @@ static void drop_mountpoint(struct fs_pin *p)
 static struct mount *susfs_alloc_unshare_ksu_vfsmnt(const char *name)
 {
 	struct mount *mnt = kmem_cache_zalloc(mnt_cache, GFP_KERNEL);
+	int res;
+	
 	if (mnt) {
 		res = ida_alloc_min(&mnt_id_ida, DEFAULT_UNSHARE_KSU_MNT_ID, GFP_KERNEL);;
 		if (res < 0) {
