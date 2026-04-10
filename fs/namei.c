@@ -3792,20 +3792,12 @@ static struct file *path_openat(struct nameidata *nd,
 	return ERR_PTR(error);
 }
 
-#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
-extern struct filename* susfs_get_redirected_path(unsigned long ino);
-struct inode *inode;
-#endif
-
 struct file *do_filp_open(int dfd, struct filename *pathname,
 		const struct open_flags *op)
 {
 	struct nameidata nd;
 	int flags = op->lookup_flags;
 	struct file *filp;
-#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
-	struct filename *fake_pathname;
-#endif
 
 	set_nameidata(&nd, dfd, pathname);
 	filp = path_openat(&nd, op, flags | LOOKUP_RCU);
@@ -3813,31 +3805,6 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
 		filp = path_openat(&nd, op, flags);
 	if (unlikely(filp == ERR_PTR(-ESTALE)))
 		filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
-#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
-	if (!IS_ERR(filp)) {
-		inode = file_inode(filp);
-		if (inode->i_mapping &&
-			unlikely(test_bit(AS_FLAGS_OPEN_REDIRECT, &inode->i_state)) &&
-			current_uid().val < 2000)
-		{
-			fake_pathname = susfs_get_redirected_path(inode->i_ino);
-			if (!IS_ERR(fake_pathname)) {
-				restore_nameidata();
-				filp_close(filp, NULL);
-				// no need to do `putname(pathname);` here as it will be done by calling process
-				set_nameidata(&nd, dfd, fake_pathname);
-				filp = path_openat(&nd, op, flags | LOOKUP_RCU);
-				if (unlikely(filp == ERR_PTR(-ECHILD)))
-					filp = path_openat(&nd, op, flags);
-				if (unlikely(filp == ERR_PTR(-ESTALE)))
-					filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
-				restore_nameidata();
-				putname(fake_pathname);
-				return filp;
-			}
-		}
-	}
-#endif
 	restore_nameidata();
 	return filp;
 }
@@ -4990,6 +4957,11 @@ out:
  *
  * Does not call security hook.
  */
+
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+extern int susfs_open_redirect_spoof_vfs_readlink(struct inode *inode, char __user *buffer, int buflen);
+#endif
+
 int vfs_readlink(struct dentry *dentry, char __user *buffer, int buflen)
 {
 	struct inode *inode = d_inode(dentry);
@@ -4999,7 +4971,18 @@ int vfs_readlink(struct dentry *dentry, char __user *buffer, int buflen)
 
 	if (unlikely(!(inode->i_opflags & IOP_DEFAULT_READLINK))) {
 		if (unlikely(inode->i_op->readlink))
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+		{
+			if (PRE_CHECK_OPEN_REDIRECT(inode)) {
+				res = susfs_open_redirect_spoof_vfs_readlink(inode, buffer, buflen);
+				if (!res)
+					return res;
+			}
 			return inode->i_op->readlink(dentry, buffer, buflen);
+		}
+#else
+			return inode->i_op->readlink(dentry, buffer, buflen);
+#endif
 
 		if (!d_is_symlink(dentry))
 			return -EINVAL;
@@ -5015,6 +4998,15 @@ int vfs_readlink(struct dentry *dentry, char __user *buffer, int buflen)
 		if (IS_ERR(link))
 			return PTR_ERR(link);
 	}
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+	if (PRE_CHECK_OPEN_REDIRECT(inode)) {
+		res = susfs_open_redirect_spoof_vfs_readlink(inode, buffer, buflen);
+		if (!res) {
+			do_delayed_call(&done);
+			return res;
+		}
+	}
+#endif
 	res = readlink_copy(buffer, buflen, link);
 	do_delayed_call(&done);
 	return res;
