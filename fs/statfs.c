@@ -87,7 +87,7 @@ int vfs_statfs(const struct path *path, struct kstatfs *buf)
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 	struct inode *inode = path->dentry->d_inode;
 
-	if (PRE_CHECK_OPEN_REDIRECT(inode)) {
+	if (SUSFS_IS_INODE_OPEN_REDIRECT(inode)) {
 		if (susfs_open_redirect_spoof_vfs_statfs(inode, buf))
 			goto orig_flow;
 		return 0;
@@ -104,7 +104,9 @@ int vfs_statfs(const struct path *path, struct kstatfs *buf)
 	}
 	error = statfs_by_dentry(no_sus_vfsmnt->mnt_root, buf);
 		if (!error)
-			buf->f_flags = calculate_f_flags(path->mnt);
+			buf->f_flags = calculate_f_flags(no_sus_vfsmnt);
+		dput(no_sus_vfsmnt->mnt_root);
+		mntput(no_sus_vfsmnt);
 		return error;
 	}
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -114,7 +116,7 @@ orig_flow:
 #endif // #if defined(CONFIG_KSU_SUSFS_SUS_MOUNT) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
 	error = statfs_by_dentry(path->dentry, buf);
 	if (!error)
-		buf->f_flags = calculate_f_flags(&mnt->mnt);
+		buf->f_flags = calculate_f_flags(path->mnt);
 	return error;
 }
 EXPORT_SYMBOL(vfs_statfs);
