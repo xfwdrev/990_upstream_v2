@@ -979,16 +979,21 @@ static int show_smap(struct seq_file *m, void *v)
 		if (vma->vm_file) {
 		struct inode *inode = file_inode(vma->vm_file);
 		if (SUSFS_IS_INODE_SUS_MAP(inode)) {
+			smap_gather_stats(vma, &mss);
 			show_map_vma(m, vma);
+			if (vma_get_anon_name(vma)) {
+				seq_puts(m, "Name:           ");
+				seq_print_vma_name(m, vma);
+			}
 			SEQ_PUT_DEC("Size:           ", vma->vm_end - vma->vm_start);
 			SEQ_PUT_DEC(" kB\nKernelPageSize: ", vma_kernel_pagesize(vma));
 			SEQ_PUT_DEC(" kB\nMMUPageSize:    ", vma_mmu_pagesize(vma));
 			seq_puts(m, " kB\n");
 			__show_smap(m, &mss, false);
+			seq_printf(m, "THPeligible:    %d\n", transparent_hugepage_enabled(vma));
 			if (arch_pkeys_enabled())
-					seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
-			seq_puts(m, "VmFlags: mr mw me");
-			seq_putc(m, '\n');
+				seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
+			seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
 			goto bypass_orig_flow;
 		}
 	}
